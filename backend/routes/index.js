@@ -249,14 +249,7 @@ router.get('/api/proxy-sources', function(req, res) {
   ]);
 });
 
-/**
- * @route GET /api/history
- * @summary 获取所有历史任务记录
- * @returns {Array} 历史任务
- */
-router.get('/api/history', function(req, res) {
-  res.json(history);
-});
+
 
 /**
  * @route POST /api/test-proxy
