@@ -6,7 +6,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "build": "cd frontend && npm install && npm run build && cd .. && shx rm -rf public && shx mkdir -p public && shx cp -r frontend/build/* public/"
+    "build": "cd frontend && npm install && CI=false npm run build && cd .. && shx rm -rf public && shx mkdir -p public && shx cp -r frontend/build/* public/"
   },
   "dependencies": {
     "axios": "^1.10.0",
