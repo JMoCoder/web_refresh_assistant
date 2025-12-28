@@ -5,15 +5,6 @@ const HttpsProxyAgent = require('https-proxy-agent');
 var router = express.Router();
 
 /**
- * @typedef {Object} VisitRequest
- * @property {string} url 目标网址
- * @property {number} mode 模式（0=按次数，1=按时间）
- * @property {number} value 次数或秒数
- * @property {boolean} useProxy 是否启用代理池
- * @property {string} proxySource 代理库名称
- */
-
-/**
  * 代理池实现：支持多个免费代理库
  */
 const proxySources = {
@@ -58,186 +49,6 @@ const proxySources = {
 };
 
 /**
- * 当前刷访问任务的状态
- */
-let currentTask = {
-  running: false,
-  progress: 0,
-  total: 0,
-  log: [],
-  report: null,
-  stopFlag: false
-};
-
-/**
- * 历史任务记录数组
- * 每条记录包含：参数、开始时间、结束时间、结果报告
- */
-let history = [];
-
-/**
- * @route POST /api/start
- * @summary 启动刷访问任务
- * @param {VisitRequest} req.body 任务参数
- * @returns {Object} 任务启动结果
- */
-router.post('/api/start', async function(req, res) {
-  // 检查任务状态，如果有遗留的running状态但没有实际在运行，自动清理
-  if (currentTask.running && !currentTask.stopFlag) {
-    return res.json({ success: false, message: '已有任务正在运行，请先停止或重置' });
-  }
-  
-  // 如果有停止标记，先清理状态
-  if (currentTask.stopFlag) {
-    currentTask = {
-      running: false,
-      progress: 0,
-      total: 0,
-      log: [],
-      report: null,
-      stopFlag: false
-    };
-  }
-  const { url, mode, value, useProxy, proxySource } = req.body;
-  const startTime = new Date();
-  currentTask = {
-    running: true,
-    progress: 0,
-    total: mode === 0 ? value : 0,
-    log: [],
-    report: null,
-    stopFlag: false,
-    // 记录参数和时间
-    params: { url, mode, value, useProxy, proxySource },
-    startTime
-  };
-  let proxies = [];
-  if (useProxy && proxySources[proxySource]) {
-    try {
-      proxies = await proxySources[proxySource]();
-      currentTask.log.push(`已获取${proxies.length}个代理IP`);
-    } catch (e) {
-      const errMsg = '代理获取失败：' + (e && e.message ? e.message : e);
-      console.error('[代理池错误]', errMsg, e && e.stack ? e.stack : '');
-      currentTask.log.push(errMsg);
-      return res.json({ success: false, message: errMsg });
-    }
-  }
-  // 启动刷访问任务（异步）
-  startVisitTask(url, mode, value, useProxy, proxies, currentTask.params, startTime);
-  res.json({ success: true, message: '任务已启动' });
-});
-
-/**
- * 启动刷访问任务的主逻辑
- * @param {string} url 目标网址
- * @param {number} mode 0=按次数，1=按时间
- * @param {number} value 次数或秒数
- * @param {boolean} useProxy 是否用代理
- * @param {string[]} proxies 代理列表
- * @param {Object} params 任务参数
- * @param {Date} startTime 任务开始时间
- */
-async function startVisitTask(url, mode, value, useProxy, proxies, params, startTime) {
-  let count = 0, success = 0, fail = 0;
-  currentTask.running = true;
-  currentTask.progress = 0;
-  currentTask.total = mode === 0 ? value : 0;
-  currentTask.log = [];
-  currentTask.report = null;
-  currentTask.stopFlag = false;
-  async function visitOnce(proxy) {
-    try {
-      const agent = proxy ? new HttpProxyAgent('http://' + proxy) : undefined;
-      await axios.get(url, { httpAgent: agent, httpsAgent: agent, timeout: 5000 });
-      success++;
-      currentTask.log.push(`[成功] ${proxy ? '代理' + proxy : '本地'} 访问成功`);
-    } catch (e) {
-      fail++;
-      currentTask.log.push(`[失败] ${proxy ? '代理' + proxy : '本地'} 访问失败: ${e.message}`);
-    }
-  }
-  if (mode === 0) {
-    for (let i = 0; i < value; i++) {
-      if (currentTask.stopFlag) break;
-      let proxy = useProxy && proxies.length > 0 ? proxies[Math.floor(Math.random() * proxies.length)] : undefined;
-      await visitOnce(proxy);
-      count++;
-      currentTask.progress = count;
-    }
-  } else {
-    let endTime = Date.now() + value * 1000;
-    while (Date.now() < endTime) {
-      if (currentTask.stopFlag) break;
-      let proxy = useProxy && proxies.length > 0 ? proxies[Math.floor(Math.random() * proxies.length)] : undefined;
-      await visitOnce(proxy);
-      count++;
-      currentTask.progress = count;
-    }
-  }
-  currentTask.running = false;
-  const endTime = new Date();
-  currentTask.report = {
-    总访问次数: count,
-    成功次数: success,
-    失败次数: fail,
-    用时秒: Math.round((endTime - startTime) / 1000),
-    代理池: useProxy ? proxies.slice(0, 10) : '未使用',
-    日志: currentTask.log.slice(-20)
-  };
-  // 保存历史记录
-  history.push({
-    params,
-    startTime,
-    endTime,
-    report: currentTask.report
-  });
-}
-
-/**
- * @route POST /api/stop
- * @summary 停止当前刷访问任务
- * @returns {Object} 停止结果
- */
-router.post('/api/stop', function(req, res) {
-  currentTask.stopFlag = true;
-  res.json({ success: true, message: '任务已停止' });
-});
-
-/**
- * @route POST /api/reset
- * @summary 强制重置任务状态（处理异常情况）
- * @returns {Object} 重置结果
- */
-router.post('/api/reset', function(req, res) {
-  // 强制重置所有任务状态
-  currentTask = {
-    running: false,
-    progress: 0,
-    total: 0,
-    log: [],
-    report: null,
-    stopFlag: false
-  };
-  res.json({ success: true, message: '任务状态已强制重置' });
-});
-
-/**
- * @route GET /api/status
- * @summary 获取当前任务状态和进度
- * @returns {Object} 状态信息
- */
-router.get('/api/status', function(req, res) {
-  res.json({
-    running: currentTask.running,
-    progress: currentTask.progress,
-    total: currentTask.total,
-    log: currentTask.log.slice(-20),
-    report: currentTask.report
-  });
-});
-
-/**
  * @route GET /api/proxy-sources
  * @summary 获取可用代理库列表
  * @returns {Array} 代理库信息
@@ -249,38 +60,54 @@ router.get('/api/proxy-sources', function(req, res) {
   ]);
 });
 
-
-
 /**
- * @route POST /api/test-proxy
- * @summary 测试代理源是否可用
- * @param {string} proxySource 代理源名称
- * @returns {Object} 测试结果
+ * @route GET /api/get-proxies
+ * @summary 获取指定源的代理列表
+ * @param {string} source 代理源key
+ * @returns {string[]} 代理列表
  */
-router.post('/api/test-proxy', async function(req, res) {
-  const { proxySource } = req.body;
-  if (!proxySources[proxySource]) {
-    return res.json({ success: false, message: '未知的代理源' });
+router.get('/api/get-proxies', async function(req, res) {
+  const source = req.query.source;
+  if (!proxySources[source]) {
+    return res.status(400).json({ error: '未知的代理源' });
   }
   try {
-    const proxies = await proxySources[proxySource]();
-    res.json({ 
-      success: true, 
-      message: `代理源 ${proxySource} 可用`, 
-      count: proxies.length,
-      samples: proxies.slice(0, 3) // 返回前3个作为样本
-    });
+    const proxies = await proxySources[source]();
+    res.json(proxies);
   } catch (e) {
-    res.json({ 
-      success: false, 
-      message: '代理源测试失败: ' + (e.message || e)
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * @route POST /api/visit
+ * @summary 单次访问目标网址（由前端循环调用）
+ * @param {string} url 目标网址
+ * @param {string} proxy 代理IP:端口 (可选)
+ * @returns {Object} 访问结果
+ */
+router.post('/api/visit', async function(req, res) {
+  const { url, proxy } = req.body;
+  if (!url) return res.status(400).json({ success: false, message: '缺少URL' });
+
+  try {
+    const agent = proxy ? new HttpProxyAgent('http://' + proxy) : undefined;
+    // 设置较短的超时时间，适应Serverless环境
+    await axios.get(url, { 
+      httpAgent: agent, 
+      httpsAgent: agent, 
+      timeout: 8000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
     });
+    res.json({ success: true, message: `[成功] ${proxy ? '代理' + proxy : '本地'} 访问成功` });
+  } catch (e) {
+    res.json({ success: false, message: `[失败] ${proxy ? '代理' + proxy : '本地'} 访问失败: ${e.message}` });
   }
 });
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Express' });
+  res.render('index', { title: 'Web Refresh Assistant API' });
 });
 
 module.exports = router;
