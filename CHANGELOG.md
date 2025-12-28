@@ -18,6 +18,7 @@
 ## [v1.2] - 2025-12-28
 
 ### 🚀 架构升级 (Architecture Upgrade)
+- **在线演示**: [https://web-refresh-assistant.vercel.app/](https://web-refresh-assistant.vercel.app/)
 - **Vercel Serverless 适配**: 彻底重构后端逻辑，支持部署到 Vercel Serverless 环境
   - 移除了后端的长任务（Long-running Task）逻辑
   - 新增 `/api/visit` 单次访问接口

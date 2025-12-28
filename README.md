@@ -1,5 +1,8 @@
 # Web Refresh Assistant
 
+[![Vercel](https://therealsujitk-vercel-badge.vercel.app/?app=web-refresh-assistant&style=flat-square)](https://web-refresh-assistant.vercel.app/)
+[**🌐 在线演示 (Live Demo)**](https://web-refresh-assistant.vercel.app/)
+
 ## 📋 项目摘要与快速启动
 
 ### 🚀 快速启动步骤
