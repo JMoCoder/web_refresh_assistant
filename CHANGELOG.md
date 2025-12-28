@@ -15,6 +15,24 @@
 
 ---
 
+## [v1.2] - 2025-12-28
+
+### 🚀 架构升级 (Architecture Upgrade)
+- **Vercel Serverless 适配**: 彻底重构后端逻辑，支持部署到 Vercel Serverless 环境
+  - 移除了后端的长任务（Long-running Task）逻辑
+  - 新增 `/api/visit` 单次访问接口
+  - 新增 `/api/get-proxies` 代理获取接口
+  - 添加 `vercel.json` 和 `api/index.js` 配置文件
+- **客户端循环控制**: 
+  - 前端重构为客户端控制循环（Client-side Loop），不再依赖后端维持任务状态
+  - 任务进度、日志、停止逻辑完全由浏览器端控制，避免 Serverless 超时限制
+
+### ⚡ 改进 (Improved)
+- **本地存储**: 历史记录改为存储在浏览器 LocalStorage，不再依赖后端内存
+- **用户体验**: 优化了开始/停止任务的响应速度，状态反馈更即时
+
+---
+
 ## [v1.1] - 2024-12-19
 
 ### 🔧 修复 (Fixed)
