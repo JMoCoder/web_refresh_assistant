@@ -1,10 +1,12 @@
 {
-  "name": "web-refresh-assistant",
+  "name": "web_refresh_assistant",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
-    "build": "cd frontend && npm install && npm run build",
-    "start": "node backend/bin/www"
+    "build": "cd frontend && npm install && npm run build && cd .. && shx rm -rf public && shx mkdir -p public && shx cp -r frontend/build/* public/"
   },
   "dependencies": {
     "axios": "^1.10.0",
@@ -17,7 +19,7 @@
     "morgan": "~1.9.1",
     "ws": "^8.18.2"
   },
-  "engines": {
-    "node": "18.x"
+  "devDependencies": {
+    "shx": "^0.3.4"
   }
 }
